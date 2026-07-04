@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tessera · Tile Pattern Generator — Axis BIM</title>
+<meta name="description" content="Tessera is a black and white generative tile pattern engine with switchable square and hex grid systems, seeded randomization, and an order-to-chaos control. Part of the Axis BIM generative design tool suite by Joe Kendsersky.">
+<meta name="author" content="Joe Kendsersky — Axis BIM">
+<meta property="og:title" content="Tessera · Tile Pattern Generator">
+<meta property="og:description" content="Black and white generative tiling on switchable square and hex grids. A generative design tool by Axis BIM.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://axisbim.io">
+<style>
+/*
+  TESSERA — GEOMETRIC TILE PATTERN GENERATOR
+  APP_VERSION = "1.7.0"
+  Black and white generative tiling on two switchable grid systems:
+    - SQUARE : diamond-in-square Truchet tile with four independent
+               corner triangles (square in square motif)
+    - HEX    : axial-coordinate hex grid (per redblobgames.com/grids/hexagons),
+               each cell split into 6 triangular wedges from center
+  Both grids share one seeded PRNG (mulberry32) and an Order<->Chaos
+  control: 0 = fully deterministic parity-based pattern (ordered,
+  flowing), 1 = fully random noise per element.
+  Single-file, no build step.
+
+  CHANGELOG
+  1.7.0 - Play now starts automatically on load, so the field is
+          already cycling seeds when the page opens. Pause still
+          works exactly as before (and still auto-pauses on any
+          manual interaction).
+  1.6.0 - fixed seed field having no visible focus state (it had
+          outline:none with no replacement, so clicking in gave zero
+          feedback). Added +/- seed stepper buttons that increment or
+          decrement a numeric seed and regenerate immediately. Seeds
+          are now numeric by default (still accepts free text; steppers
+          fall back to 0 if the field isn't numeric). Strengthened the
+          click-flash on Regenerate and other momentary buttons.
+  1.5.0 - fixed cells/hexes being cut off at canvas edges. Square mode
+          now sizes the viewBox to an exact multiple of the current
+          cell size (tiles always land flush, no partial cell at the
+          right/bottom edge). Hex mode now only draws fully-contained
+          hexagons and recenters the whole field so any leftover
+          space is an even margin on all sides rather than a clipped
+          edge hex. PNG export now reads the live viewBox instead of
+          a hardcoded size.
+  1.4.0 - added project/author byline (Joe.K / axisbim.io) to the
+          header, SEO meta description + Open Graph tags in <head>.
+  1.3.0 - moved the title/seed label out of the artwork into its own
+          strip below the pattern (was overlapping the tiles as
+          selectable SVG text); added a brief pressed-state flash to
+          momentary action buttons (Randomize, Regenerate, Export SVG,
+          Export PNG) for click feedback; Enter key in the seed field
+          now triggers Regenerate.
+  1.2.0 - added Play/Pause auto-generate: cycles new random seeds on
+          an interval (speed slider), pauses itself on manual seed edits.
+  1.1.0 - added hover tooltips (title attrs) on all controls, version
+          badge shown in header.
+  1.0.0 - initial release: square + hex modes, seed/randomize,
+          cell size, order<->chaos blend, diamond scale (square mode),
+          SVG + PNG export.
+*/
+:root{
+  --paper:#e8e2d6;
+  --ink:#141311;
+}
+*{box-sizing:border-box;}
+html,body{
+  margin:0; padding:0;
+  background:#c9c4b8;
+  font-family:'Helvetica Neue', Arial, sans-serif;
+  color:#141311;
+}
+.app{
+  display:flex; flex-direction:column; align-items:center;
+  min-height:100vh; padding:28px 16px 60px;
+}
+header{
+  width:100%; max-width:920px;
+  display:flex; justify-content:space-between; align-items:flex-end;
+  margin-bottom:18px; border-bottom:2px solid #141311; padding-bottom:10px;
+}
+header h1{ font-size:15px; letter-spacing:0.14em; margin:0; font-weight:700; text-transform:uppercase; }
+header .byline{ font-size:9.5px; letter-spacing:0.06em; color:#5a564c; margin-top:4px; text-transform:uppercase; }
+header .byline a{ color:#5a564c; text-decoration:none; border-bottom:1px solid #5a564c; }
+header .byline a:hover{ color:#141311; border-bottom-color:#141311; }
+header .sub{ font-size:10px; letter-spacing:0.06em; color:#5a564c; text-transform:uppercase; }
+.stage{
+  background:var(--paper);
+  box-shadow:0 2px 18px rgba(0,0,0,0.22);
+  width:100%; max-width:920px; aspect-ratio:16/6;
+}
+.stage svg{ width:100%; height:100%; display:block; }
+.labelStrip{
+  width:100%; max-width:920px;
+  font-size:10px; letter-spacing:0.1em; text-transform:uppercase;
+  color:#5a564c; padding:8px 2px 0; user-select:none;
+}
+.controls{
+  width:100%; max-width:920px; margin-top:18px;
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+}
+button, .seedbox{
+  font-family:inherit; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+  border:1.5px solid #141311; background:#e8e2d6; color:#141311;
+  padding:9px 16px; cursor:pointer; transition:background 0.12s, color 0.12s;
+}
+button.active{ background:#141311; color:#e8e2d6; }
+button.flash{ background:#141311; color:#e8e2d6; border-color:#141311; transform:translateY(1px); }
+button:hover{ background:#141311; color:#e8e2d6; }
+button:active{ transform:translateY(1px); }
+.seedbox{
+  display:flex; align-items:center; gap:6px; cursor:default;
+  transition: background 0.12s, border-color 0.12s;
+}
+.seedbox:focus-within{ background:#d9d2c2; border-color:#141311; }
+.seedbox input{
+  font-family:inherit; font-size:11px; border:none; width:80px;
+  background:transparent; color:#141311; padding:2px 4px;
+}
+.seedbox input:focus{ outline:none; background:#fffdf8; box-shadow:inset 0 0 0 1.5px #141311; }
+.seedStep{
+  font-family:inherit; font-size:13px; line-height:1; font-weight:700;
+  border:1.5px solid #141311; background:#e8e2d6; color:#141311;
+  width:24px; height:24px; padding:0; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background 0.1s, color 0.1s;
+}
+.seedStep:hover{ background:#141311; color:#e8e2d6; }
+.seedStep:active{ transform:translateY(1px); }
+.spacer{ flex:1; }
+.row{ width:100%; max-width:920px; display:flex; flex-wrap:wrap; gap:18px; margin-top:14px; }
+.field{ display:flex; flex-direction:column; gap:4px; min-width:150px; }
+.field label{ font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:#5a564c; }
+.field input[type=range]{ width:100%; accent-color:#141311; }
+.field.hidden{ display:none; }
+footer{
+  max-width:920px; width:100%; margin-top:20px; font-size:9.5px; color:#5a564c;
+  letter-spacing:0.04em; border-top:1px solid #aaa5;padding-top:10px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Tessera · Tile Pattern Generator</h1>
+      <div class="byline">Joe.K · <a href="https://axisbim.io" target="_blank" rel="noopener">axisbim.io</a></div>
+    </div>
+    <div class="sub">square + hex grids · seeded · v<span id="verBadge">1.7.0</span></div>
+  </header>
+
+  <div class="stage"><svg id="svg" viewBox="0 0 1600 600" xmlns="http://www.w3.org/2000/svg"></svg></div>
+  <div class="labelStrip" id="labelStrip">TESSERA — SQUARE — SEED — v1.3.0</div>
+
+  <div class="controls">
+    <button id="btnSquare" class="active" title="Diamond-in-square Truchet tile: a diamond plus four independent corner triangles per cell.">Square Grid</button>
+    <button id="btnHex" title="Axial-coordinate hex grid: each cell split into six triangular wedges from center to vertex.">Hex Grid</button>
+    <div class="spacer"></div>
+    <button id="btnRandom" title="Pick a new random seed and regenerate the field.">Randomize</button>
+    <button id="btnPlay" title="Auto-generate: cycles through new random seeds on an interval. Click again to pause.">&#9654; Play</button>
+    <button id="btnRegen" title="Re-run the generator with the current seed and settings (useful after tweaking a slider).">Regenerate</button>
+    <div class="seedbox" title="The seed value driving the PRNG. Same seed + same settings always reproduces the same pattern.">
+      Seed
+      <button class="seedStep" id="seedDown" title="Step to the previous seed and regenerate.">&minus;</button>
+      <input id="seedInput" type="text" value="" title="Type a number (or any text) here as a custom seed, then hit Regenerate or press Enter.">
+      <button class="seedStep" id="seedUp" title="Step to the next seed and regenerate.">&plus;</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="btnSVG" title="Download the current pattern as a scalable, editable SVG file.">Export SVG</button>
+    <button id="btnPNG" title="Download the current pattern as a high-resolution PNG raster image (2x the on-screen canvas size).">Export PNG</button>
+  </div>
+
+  <div class="row">
+    <div class="field" title="Size of each grid cell in pixels. Smaller cells = denser, more intricate pattern.">
+      <label>Cell Size: <span id="lblCell">70</span>px</label>
+      <input type="range" id="rngCell" min="30" max="140" value="70" title="Size of each grid cell in pixels. Smaller cells = denser, more intricate pattern.">
+    </div>
+    <div class="field" title="Blends a deterministic coordinate-based pattern (0, ordered/flowing) with random flips (1, pure noise).">
+      <label>Order &larr;&rarr; Chaos: <span id="lblChaos">0.25</span></label>
+      <input type="range" id="rngChaos" min="0" max="100" value="25" title="Blends a deterministic coordinate-based pattern (0, ordered/flowing) with random flips (1, pure noise).">
+    </div>
+    <div class="field" title="How often random elements land black vs paper. 0.50 is even; push either way to make the field lighter or darker.">
+      <label>Fill Balance (black bias): <span id="lblFill">0.50</span></label>
+      <input type="range" id="rngFill" min="10" max="90" value="50" title="How often random elements land black vs paper. 0.50 is even; push either way to make the field lighter or darker.">
+    </div>
+    <div class="field" title="How often Play advances to a new random seed, in seconds.">
+      <label>Play Speed: <span id="lblSpeed">1.2</span>s</label>
+      <input type="range" id="rngSpeed" min="3" max="30" value="12" title="How often Play advances to a new random seed, in seconds.">
+    </div>
+    <div class="field" id="fieldDiamond" title="Square mode only: size of the inscribed diamond relative to the cell. Below 1.00 leaves a paper-colored ring between diamond and corner triangles.">
+      <label>Diamond Scale: <span id="lblDiamond">1.00</span></label>
+      <input type="range" id="rngDiamond" min="40" max="100" value="100" title="Square mode only: size of the inscribed diamond relative to the cell. Below 1.00 leaves a paper-colored ring between diamond and corner triangles.">
+    </div>
+  </div>
+
+  <footer>
+    Square mode: diamond-in-square Truchet tile, four independently colored corner triangles per cell.
+    Hex mode: axial-coordinate hex grid, each cell split into six triangular wedges from center to vertex.
+    Order&larr;&rarr;Chaos blends a deterministic coordinate-parity pattern with random flips — low values read as
+    flowing and architectural, high values read as noise. Same seed always reproduces the same field.
+  </footer>
+</div>
+
+<script>
+"use strict";
+const APP_VERSION = "1.7.0";
+const INK = "#141311";
+const PAPER = "#e8e2d6";
+
+/* ---------- seeded PRNG (mulberry32) ---------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashSeed(str){
+  let h = 1779033703 ^ str.length;
+  for (let i=0;i<str.length;i++){
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h<<13)|(h>>>19);
+  }
+  return (h ^ (h>>>16)) >>> 0;
+}
+function randomSeedNumber(){ return Math.floor(Math.random()*100000); }
+
+/* ---------- SVG helpers ---------- */
+const SVG_NS = "http://www.w3.org/2000/svg";
+function el(tag,attrs){
+  const e = document.createElementNS(SVG_NS,tag);
+  for (const k in attrs) e.setAttribute(k,attrs[k]);
+  return e;
+}
+function poly(pts,fill){
+  return el("polygon",{points:pts.map(p=>p.join(",")).join(" "), fill:fill, stroke:"none"});
+}
+
+/* ---------- shared: order<->chaos boolean picker ---------- */
+// baseState: deterministic 0/1 from coordinate parity. chaos in [0,1] blends
+// toward a random coin flip weighted by fillBias.
+function pickFill(rnd, baseState, chaos, fillBias){
+  const useRandom = rnd() < chaos;
+  const bit = useRandom ? (rnd() < fillBias ? 1 : 0) : baseState;
+  return bit === 1 ? INK : PAPER;
+}
+
+function flashButton(btn){
+  btn.classList.add('flash');
+  setTimeout(()=>btn.classList.remove('flash'), 180);
+}
+
+/* ---------- SQUARE GRID: diamond-in-square Truchet tile ---------- */
+function buildSquareGrid(svg, seedStr, opts){
+  const rnd = mulberry32(hashSeed(seedStr));
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const BASE_W = 1600, BASE_H = 600;
+  const s = opts.cellSize;
+  const cols = Math.max(1, Math.round(BASE_W / s));
+  const rows = Math.max(1, Math.round(BASE_H / s));
+  const W = cols * s, H = rows * s;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:PAPER}));
+
+  const d = (s/2) * opts.diamondScale;
+  const g = el("g",{});
+  svg.appendChild(g);
+
+  for (let r=0;r<rows;r++){
+    for (let c=0;c<cols;c++){
+      const cx = c*s + s/2, cy = r*s + s/2;
+
+      // diamond
+      const diamondBase = (r+c) % 2;
+      const diamondFill = pickFill(rnd, diamondBase, opts.chaos, opts.fillBias);
+      g.appendChild(poly([[cx,cy-d],[cx+d,cy],[cx,cy+d],[cx-d,cy]], diamondFill));
+
+      // four corner triangles (geometry fixed at half-cell regardless of diamond scale,
+      // so a paper-colored ring can appear between diamond and triangles)
+      const half = s/2;
+      const corners = [
+        {corner:[cx-half,cy-half], a:[cx,cy-half], b:[cx-half,cy], base:(r+c+0)%2}, // TL
+        {corner:[cx+half,cy-half], a:[cx,cy-half], b:[cx+half,cy], base:(r+c+1)%2}, // TR
+        {corner:[cx+half,cy+half], a:[cx,cy+half], b:[cx+half,cy], base:(r+c+0)%2}, // BR
+        {corner:[cx-half,cy+half], a:[cx,cy+half], b:[cx-half,cy], base:(r+c+1)%2}  // BL
+      ];
+      corners.forEach(t=>{
+        const fill = pickFill(rnd, t.base, opts.chaos, opts.fillBias);
+        g.appendChild(poly([t.corner,t.a,t.b], fill));
+      });
+    }
+  }
+  updateLabelStrip(seedStr, "SQUARE");
+}
+
+/* ---------- HEX GRID: axial coordinates (pointy-top), redblobgames convention ---------- */
+function axialToPixel(q,r,R){
+  const x = R * Math.sqrt(3) * (q + r/2);
+  const y = R * 1.5 * r;
+  return [x,y];
+}
+function hexVertex(cx,cy,R,i){
+  // pointy-top: first vertex at -30deg
+  const angle = Math.PI/180 * (60*i - 30);
+  return [cx + R*Math.cos(angle), cy + R*Math.sin(angle)];
+}
+function buildHexGrid(svg, seedStr, opts){
+  const rnd = mulberry32(hashSeed(seedStr));
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = 1600, H = 600;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:PAPER}));
+
+  const R = opts.cellSize * 0.62; // hex "radius" scaled to feel comparable to square cell size
+  const g = el("g",{});
+  svg.appendChild(g);
+
+  const cx0 = W/2, cy0 = H/2;
+  const qRange = Math.ceil(W / (R*Math.sqrt(3))) + 2;
+  const rRange = Math.ceil(H / (R*1.5)) + 2;
+  const EPS = 0.01;
+
+  // pass 1: generate every candidate hex in range, keep only ones whose six
+  // vertices are fully inside the canvas — never a partial/cut hex.
+  const kept = [];
+  for (let r=-rRange; r<=rRange; r++){
+    for (let q=-qRange; q<=qRange; q++){
+      const [px,py] = axialToPixel(q,r,R);
+      const cx = cx0+px, cy = cy0+py;
+      if (cx < -R*2 || cx > W+R*2 || cy < -R*2 || cy > H+R*2) continue;
+
+      const verts = [0,1,2,3,4,5].map(i=>hexVertex(cx,cy,R,i));
+      const fullyInside = verts.every(([vx,vy]) => vx>=-EPS && vx<=W+EPS && vy>=-EPS && vy<=H+EPS);
+      if (fullyInside) kept.push({q,r,cx,cy,verts});
+    }
+  }
+
+  // pass 2: recenter the kept field so leftover space is an even margin
+  // on all sides, instead of the field sitting flush against one edge.
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  kept.forEach(h=>h.verts.forEach(([vx,vy])=>{
+    if (vx<minX) minX=vx; if (vx>maxX) maxX=vx;
+    if (vy<minY) minY=vy; if (vy>maxY) maxY=vy;
+  }));
+  const fieldW = maxX-minX, fieldH = maxY-minY;
+  const tx = (W-fieldW)/2 - minX;
+  const ty = (H-fieldH)/2 - minY;
+  const gInner = el("g",{transform:`translate(${tx},${ty})`});
+  g.appendChild(gInner);
+
+  kept.forEach(h=>{
+    const {q,r,cx,cy,verts} = h;
+    for (let i=0;i<6;i++){
+      const a = verts[i], b = verts[(i+1)%6];
+      const base = (q - r + i) % 2 === 0 ? 0 : 1;
+      const fill = pickFill(rnd, ((base + ((q+2*r)%3+3)%3) % 2), opts.chaos, opts.fillBias);
+      gInner.appendChild(poly([[cx,cy],a,b], fill));
+    }
+  });
+  updateLabelStrip(seedStr, "HEX");
+}
+
+function updateLabelStrip(seedStr, mode){
+  const el = document.getElementById('labelStrip');
+  if (el) el.textContent = `TESSERA — ${mode} — SEED ${seedStr.toUpperCase()} — v${APP_VERSION}`;
+}
+
+/* ---------- wiring ---------- */
+const svg = document.getElementById("svg");
+const seedInput = document.getElementById("seedInput");
+const rngCell = document.getElementById("rngCell");
+const rngChaos = document.getElementById("rngChaos");
+const rngFill = document.getElementById("rngFill");
+const rngDiamond = document.getElementById("rngDiamond");
+const lblCell = document.getElementById("lblCell");
+const lblChaos = document.getElementById("lblChaos");
+const lblFill = document.getElementById("lblFill");
+const lblDiamond = document.getElementById("lblDiamond");
+const btnSquare = document.getElementById("btnSquare");
+const btnHex = document.getElementById("btnHex");
+const btnPlay = document.getElementById("btnPlay");
+const rngSpeed = document.getElementById("rngSpeed");
+const lblSpeed = document.getElementById("lblSpeed");
+const fieldDiamond = document.getElementById("fieldDiamond");
+
+let gridMode = "square";
+let playTimer = null;
+let isPlaying = false;
+
+function startPlay(){
+  isPlaying = true;
+  btnPlay.innerHTML = "&#10074;&#10074; Pause";
+  btnPlay.classList.add("active");
+  const tick = ()=>{
+    seedInput.value = randomSeedNumber();
+    regen();
+  };
+  tick();
+  playTimer = setInterval(tick, parseInt(rngSpeed.value,10)*100);
+}
+function stopPlay(){
+  isPlaying = false;
+  btnPlay.innerHTML = "&#9654; Play";
+  btnPlay.classList.remove("active");
+  if (playTimer){ clearInterval(playTimer); playTimer = null; }
+}
+
+function currentOpts(){
+  return {
+    cellSize: parseInt(rngCell.value,10),
+    chaos: parseInt(rngChaos.value,10)/100,
+    fillBias: parseInt(rngFill.value,10)/100,
+    diamondScale: parseInt(rngDiamond.value,10)/100
+  };
+}
+function regen(){
+  const seed = seedInput.value || "tessera";
+  const opts = currentOpts();
+  if (gridMode === "square") buildSquareGrid(svg, seed, opts);
+  else buildHexGrid(svg, seed, opts);
+}
+function syncLabels(){
+  lblCell.textContent = rngCell.value;
+  lblChaos.textContent = (parseInt(rngChaos.value,10)/100).toFixed(2);
+  lblFill.textContent = (parseInt(rngFill.value,10)/100).toFixed(2);
+  lblDiamond.textContent = (parseInt(rngDiamond.value,10)/100).toFixed(2);
+  lblSpeed.textContent = (parseInt(rngSpeed.value,10)/10).toFixed(1);
+}
+[rngCell,rngChaos,rngFill,rngDiamond].forEach(r=>{
+  r.addEventListener("input", ()=>{ syncLabels(); regen(); });
+});
+rngSpeed.addEventListener("input", ()=>{
+  syncLabels();
+  if (isPlaying){ stopPlay(); startPlay(); } // restart interval at new speed, keep playing
+});
+btnSquare.addEventListener("click", ()=>{
+  stopPlay();
+  gridMode = "square"; btnSquare.classList.add("active"); btnHex.classList.remove("active");
+  fieldDiamond.classList.remove("hidden");
+  regen();
+});
+btnHex.addEventListener("click", ()=>{
+  stopPlay();
+  gridMode = "hex"; btnHex.classList.add("active"); btnSquare.classList.remove("active");
+  fieldDiamond.classList.add("hidden");
+  regen();
+});
+document.getElementById("btnRandom").addEventListener("click", (e)=>{
+  stopPlay();
+  flashButton(e.currentTarget);
+  seedInput.value = randomSeedNumber();
+  regen();
+});
+document.getElementById("btnRegen").addEventListener("click", (e)=>{
+  stopPlay();
+  flashButton(e.currentTarget);
+  regen();
+});
+btnPlay.addEventListener("click", ()=>{
+  if (isPlaying) stopPlay(); else startPlay();
+});
+seedInput.addEventListener("input", stopPlay);
+seedInput.addEventListener("keydown", (e)=>{
+  if (e.key === "Enter"){
+    stopPlay();
+    flashButton(document.getElementById("btnRegen"));
+    regen();
+  }
+});
+
+function stepSeed(delta){
+  stopPlay();
+  let n = parseInt(seedInput.value, 10);
+  if (isNaN(n)) n = 0;
+  n = Math.max(0, n + delta);
+  seedInput.value = String(n);
+  flashButton(document.getElementById(delta > 0 ? "seedUp" : "seedDown"));
+  regen();
+}
+document.getElementById("seedUp").addEventListener("click", ()=>stepSeed(1));
+document.getElementById("seedDown").addEventListener("click", ()=>stepSeed(-1));
+
+
+document.getElementById("btnSVG").addEventListener("click", (e)=>{
+  flashButton(e.currentTarget);
+  const s = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([s], {type:"image/svg+xml"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `tessera-${gridMode}-${seedInput.value}.svg`;
+  a.click();
+});
+document.getElementById("btnPNG").addEventListener("click", (e)=>{
+  flashButton(e.currentTarget);
+  const vb = svg.viewBox.baseVal;
+  const outW = Math.round(vb.width * 2), outH = Math.round(vb.height * 2);
+  const s = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  const svgBlob = new Blob([s], {type:"image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(svgBlob);
+  img.onload = function(){
+    const canvas = document.createElement("canvas");
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(0,0,outW,outH);
+    ctx.drawImage(img,0,0,outW,outH);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(function(blob){
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `tessera-${gridMode}-${seedInput.value}.png`;
+      a.click();
+    });
+  };
+  img.src = url;
+});
+
+// init
+seedInput.value = randomSeedNumber();
+syncLabels();
+startPlay();
+</script>
+</body>
+</html>
