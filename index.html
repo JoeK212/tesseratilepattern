@@ -13,7 +13,7 @@
 <style>
 /*
   TESSERA — GEOMETRIC TILE PATTERN GENERATOR
-  APP_VERSION = "1.7.0"
+  APP_VERSION = "1.7.1"
   Black and white generative tiling on two switchable grid systems:
     - SQUARE : diamond-in-square Truchet tile with four independent
                corner triangles (square in square motif)
@@ -25,6 +25,13 @@
   Single-file, no build step.
 
   CHANGELOG
+  1.7.1 - fixed Cell Size / Order-Chaos / Fill Balance / Diamond Scale
+          sliders not stopping autoplay: since 1.7.0 plays on load,
+          adjusting a slider without touching Randomize/Regenerate left
+          the background interval running, which silently overwrote
+          the slider's effect with a new random seed ~1s later. These
+          sliders now call stopPlay() like every other manual control.
+          Play Speed intentionally still keeps playing while adjusted.
   1.7.0 - Play now starts automatically on load, so the field is
           already cycling seeds when the page opens. Pause still
           works exactly as before (and still auto-pauses on any
@@ -147,7 +154,7 @@ footer{
       <h1>Tessera · Tile Pattern Generator</h1>
       <div class="byline">Joe.K · <a href="https://axisbim.io" target="_blank" rel="noopener">axisbim.io</a></div>
     </div>
-    <div class="sub">square + hex grids · seeded · v<span id="verBadge">1.7.0</span></div>
+    <div class="sub">square + hex grids · seeded · v<span id="verBadge">1.7.1</span></div>
   </header>
 
   <div class="stage"><svg id="svg" viewBox="0 0 1600 600" xmlns="http://www.w3.org/2000/svg"></svg></div>
@@ -204,7 +211,7 @@ footer{
 
 <script>
 "use strict";
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.7.1";
 const INK = "#141311";
 const PAPER = "#e8e2d6";
 
@@ -429,7 +436,7 @@ function syncLabels(){
   lblSpeed.textContent = (parseInt(rngSpeed.value,10)/10).toFixed(1);
 }
 [rngCell,rngChaos,rngFill,rngDiamond].forEach(r=>{
-  r.addEventListener("input", ()=>{ syncLabels(); regen(); });
+  r.addEventListener("input", ()=>{ stopPlay(); syncLabels(); regen(); });
 });
 rngSpeed.addEventListener("input", ()=>{
   syncLabels();
