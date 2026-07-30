@@ -23,57 +23,6 @@
   control: 0 = fully deterministic parity-based pattern (ordered,
   flowing), 1 = fully random noise per element.
   Single-file, no build step.
-
-  CHANGELOG
-  1.7.2 - seed field now applies automatically on blur (clicking or
-          tabbing away), not just on Enter. Previously, Regenerate was
-          the only way to apply a typed seed if you didn't press Enter,
-          and in every OTHER situation Regenerate correctly produced a
-          byte-identical output (same seed + same settings = same
-          result), which made it look broken even though it wasn't.
-          It's now a rarely-needed manual refresh rather than part of
-          the normal seed-entry workflow.
-  1.7.1 - fixed Cell Size / Order-Chaos / Fill Balance / Diamond Scale
-          sliders not stopping autoplay: since 1.7.0 plays on load,
-          adjusting a slider without touching Randomize/Regenerate left
-          the background interval running, which silently overwrote
-          the slider's effect with a new random seed ~1s later. These
-          sliders now call stopPlay() like every other manual control.
-          Play Speed intentionally still keeps playing while adjusted.
-  1.7.0 - Play now starts automatically on load, so the field is
-          already cycling seeds when the page opens. Pause still
-          works exactly as before (and still auto-pauses on any
-          manual interaction).
-  1.6.0 - fixed seed field having no visible focus state (it had
-          outline:none with no replacement, so clicking in gave zero
-          feedback). Added +/- seed stepper buttons that increment or
-          decrement a numeric seed and regenerate immediately. Seeds
-          are now numeric by default (still accepts free text; steppers
-          fall back to 0 if the field isn't numeric). Strengthened the
-          click-flash on Regenerate and other momentary buttons.
-  1.5.0 - fixed cells/hexes being cut off at canvas edges. Square mode
-          now sizes the viewBox to an exact multiple of the current
-          cell size (tiles always land flush, no partial cell at the
-          right/bottom edge). Hex mode now only draws fully-contained
-          hexagons and recenters the whole field so any leftover
-          space is an even margin on all sides rather than a clipped
-          edge hex. PNG export now reads the live viewBox instead of
-          a hardcoded size.
-  1.4.0 - added project/author byline (Joe.K / axisbim.io) to the
-          header, SEO meta description + Open Graph tags in <head>.
-  1.3.0 - moved the title/seed label out of the artwork into its own
-          strip below the pattern (was overlapping the tiles as
-          selectable SVG text); added a brief pressed-state flash to
-          momentary action buttons (Randomize, Regenerate, Export SVG,
-          Export PNG) for click feedback; Enter key in the seed field
-          now triggers Regenerate.
-  1.2.0 - added Play/Pause auto-generate: cycles new random seeds on
-          an interval (speed slider), pauses itself on manual seed edits.
-  1.1.0 - added hover tooltips (title attrs) on all controls, version
-          badge shown in header.
-  1.0.0 - initial release: square + hex modes, seed/randomize,
-          cell size, order<->chaos blend, diamond scale (square mode),
-          SVG + PNG export.
 */
 :root{
   --paper:#e8e2d6;
