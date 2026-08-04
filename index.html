@@ -13,7 +13,7 @@
 <style>
 /*
   TESSERA — GEOMETRIC TILE PATTERN GENERATOR
-  APP_VERSION = "1.7.2"
+  APP_VERSION = "1.8.0"
   Black and white generative tiling on two switchable grid systems:
     - SQUARE : diamond-in-square Truchet tile with four independent
                corner triangles (square in square motif)
@@ -23,6 +23,63 @@
   control: 0 = fully deterministic parity-based pattern (ordered,
   flowing), 1 = fully random noise per element.
   Single-file, no build step.
+
+  CHANGELOG
+  1.8.0 - added a tablet/desktop-only gate screen (matching the
+          Modulor Mondrian pattern): on viewports at or below 768px
+          wide, the app is hidden and replaced with a dark full-screen
+          message pointing the user to a larger display. Pure CSS
+          media query, so it also responds live if a desktop window is
+          resized down.
+  1.7.2 - seed field now applies automatically on blur (clicking or
+          tabbing away), not just on Enter. Previously, Regenerate was
+          the only way to apply a typed seed if you didn't press Enter,
+          and in every OTHER situation Regenerate correctly produced a
+          byte-identical output (same seed + same settings = same
+          result), which made it look broken even though it wasn't.
+          It's now a rarely-needed manual refresh rather than part of
+          the normal seed-entry workflow.
+  1.7.1 - fixed Cell Size / Order-Chaos / Fill Balance / Diamond Scale
+          sliders not stopping autoplay: since 1.7.0 plays on load,
+          adjusting a slider without touching Randomize/Regenerate left
+          the background interval running, which silently overwrote
+          the slider's effect with a new random seed ~1s later. These
+          sliders now call stopPlay() like every other manual control.
+          Play Speed intentionally still keeps playing while adjusted.
+  1.7.0 - Play now starts automatically on load, so the field is
+          already cycling seeds when the page opens. Pause still
+          works exactly as before (and still auto-pauses on any
+          manual interaction).
+  1.6.0 - fixed seed field having no visible focus state (it had
+          outline:none with no replacement, so clicking in gave zero
+          feedback). Added +/- seed stepper buttons that increment or
+          decrement a numeric seed and regenerate immediately. Seeds
+          are now numeric by default (still accepts free text; steppers
+          fall back to 0 if the field isn't numeric). Strengthened the
+          click-flash on Regenerate and other momentary buttons.
+  1.5.0 - fixed cells/hexes being cut off at canvas edges. Square mode
+          now sizes the viewBox to an exact multiple of the current
+          cell size (tiles always land flush, no partial cell at the
+          right/bottom edge). Hex mode now only draws fully-contained
+          hexagons and recenters the whole field so any leftover
+          space is an even margin on all sides rather than a clipped
+          edge hex. PNG export now reads the live viewBox instead of
+          a hardcoded size.
+  1.4.0 - added project/author byline (Joe.K / axisbim.io) to the
+          header, SEO meta description + Open Graph tags in <head>.
+  1.3.0 - moved the title/seed label out of the artwork into its own
+          strip below the pattern (was overlapping the tiles as
+          selectable SVG text); added a brief pressed-state flash to
+          momentary action buttons (Randomize, Regenerate, Export SVG,
+          Export PNG) for click feedback; Enter key in the seed field
+          now triggers Regenerate.
+  1.2.0 - added Play/Pause auto-generate: cycles new random seeds on
+          an interval (speed slider), pauses itself on manual seed edits.
+  1.1.0 - added hover tooltips (title attrs) on all controls, version
+          badge shown in header.
+  1.0.0 - initial release: square + hex modes, seed/randomize,
+          cell size, order<->chaos blend, diamond scale (square mode),
+          SVG + PNG export.
 */
 :root{
   --paper:#e8e2d6;
@@ -102,16 +159,65 @@ footer{
   max-width:920px; width:100%; margin-top:20px; font-size:9.5px; color:#5a564c;
   letter-spacing:0.04em; border-top:1px solid #aaa5;padding-top:10px;
 }
+
+/* ---- mobile gate: tablet/desktop only ---- */
+.mobileGate{
+  display:none;
+  position:fixed; inset:0; z-index:9999;
+  background:#141311; color:#e8e2d6;
+  flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:40px 24px;
+  font-family:'Helvetica Neue', Arial, sans-serif;
+}
+.mobileGate .gateIcon{ width:88px; height:88px; margin-bottom:26px; }
+.mobileGate .gateRule{ width:56px; height:1px; background:#5a564c; margin:22px auto; border:none; }
+.mobileGate h2{
+  font-size:21px; letter-spacing:0.16em; font-weight:700; text-transform:uppercase; margin:0;
+}
+.mobileGate p{
+  font-size:15px; line-height:1.7; color:#a39d90; max-width:340px; margin:0 auto;
+}
+.mobileGate .gateByline{
+  font-size:11px; letter-spacing:0.1em; color:#6f6a5e; text-transform:uppercase;
+}
+.mobileGate .gateByline a{ color:#a39d90; text-decoration:none; border-bottom:1px solid #6f6a5e; }
+
+@media (max-width: 768px){
+  .mobileGate{ display:flex; }
+  .app{ display:none; }
+}
 </style>
 </head>
 <body>
+<div class="mobileGate">
+  <svg class="gateIcon" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="120" height="120" fill="#e8e2d6"/>
+    <polygon points="60,0 30,0 60,30" fill="#141311"/>
+    <polygon points="0,60 30,60 0,30" fill="#141311"/>
+    <polygon points="90,0 120,30 90,60 60,30" fill="#141311"/>
+    <polygon points="60,0 90,0 60,30" fill="#141311"/>
+    <polygon points="120,60 90,60 120,30" fill="#141311"/>
+    <polygon points="30,60 60,90 30,120 0,90" fill="#141311"/>
+    <polygon points="0,60 30,60 0,90" fill="#141311"/>
+    <polygon points="60,120 30,120 60,90" fill="#141311"/>
+    <polygon points="120,60 90,60 120,90" fill="#141311"/>
+    <polygon points="60,120 90,120 60,90" fill="#141311"/>
+    <rect x="0.5" y="0.5" width="119" height="119" fill="none" stroke="#3a362f" stroke-width="1"/>
+  </svg>
+  <hr class="gateRule">
+  <h2>Tessera</h2>
+  <hr class="gateRule">
+  <p>This tool needs a wider canvas and control layout to work properly. Please open it on a tablet or desktop display.</p>
+  <hr class="gateRule">
+  <div class="gateByline">Joe.K &middot; <a href="https://axisbim.io" target="_blank" rel="noopener">axisbim.io</a></div>
+</div>
 <div class="app">
   <header>
     <div>
       <h1>Tessera · Tile Pattern Generator</h1>
       <div class="byline">Joe.K · <a href="https://axisbim.io" target="_blank" rel="noopener">axisbim.io</a></div>
     </div>
-    <div class="sub">square + hex grids · seeded · v<span id="verBadge">1.7.2</span></div>
+    <div class="sub">square + hex grids · seeded · v<span id="verBadge">1.8.0</span></div>
   </header>
 
   <div class="stage"><svg id="svg" viewBox="0 0 1600 600" xmlns="http://www.w3.org/2000/svg"></svg></div>
@@ -168,7 +274,7 @@ footer{
 
 <script>
 "use strict";
-const APP_VERSION = "1.7.2";
+const APP_VERSION = "1.8.0";
 const INK = "#141311";
 const PAPER = "#e8e2d6";
 
