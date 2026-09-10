@@ -32,4 +32,4 @@ Joe Kendsersky — [axisbim.io](https://axisbim.io)
 
 ## License
 
-© Joe Kendsersky / Axis BIM. All rights reserved.
+MIT © Joe Kendsersky / Axis BIM. See [LICENSE](./LICENSE).
