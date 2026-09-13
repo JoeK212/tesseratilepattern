@@ -18,18 +18,5 @@ Both grids share one seeded PRNG (mulberry32) and an **Order ↔ Chaos** control
 - SVG and high-resolution PNG export
 - Single HTML file, no build step, no dependencies
 
-## Tech
-
-Vanilla HTML/CSS/JS. No frameworks, no bundler. `mulberry32` for seeded randomness. SVG for rendering, `<canvas>` only as an intermediate step for PNG export.
-
-## Deployment
-
-Static site — deploys as-is on Netlify (see `netlify.toml`) with continuous deployment from this repo.
-
-## Author
-
-Joe Kendsersky — [axisbim.io](https://axisbim.io)
-
-## License
-
-MIT © Joe Kendsersky / Axis BIM. See [LICENSE](./LICENSE).
+---
+Joe.K · [axisbim.io](https://axisbim.io)
